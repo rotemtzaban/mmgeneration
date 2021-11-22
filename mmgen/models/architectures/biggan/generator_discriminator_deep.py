@@ -314,11 +314,17 @@ class BigGANDeepGenerator(nn.Module):
                 will be returned. Otherwise, a dict contains ``fake_img``,
                 ``noise_batch`` and ``label`` will be returned.
         """
+        noise_array = None
         if isinstance(noise, torch.Tensor):
             assert noise.shape[1] == self.noise_size
-            assert noise.ndim == 2, ('The noise should be in shape of (n, c), '
-                                     f'but got {noise.shape}')
-            noise_batch = noise
+            if noise.ndim == 3:
+                noise_batch = noise[:, 0]
+                noise_array = noise[:, 1:].unbind(1)
+                assert len(noise_array) == len(self.conv_blocks)
+            else:
+                assert noise.ndim == 2, ('The noise should be in shape of (n, c), '
+                                         f'but got {noise.shape}')
+                noise_batch = noise
         # receive a noise generator and sample noise.
         elif callable(noise):
             noise_generator = noise
@@ -366,12 +372,18 @@ class BigGANDeepGenerator(nn.Module):
             if class_vector is not None:
                 z = torch.cat([noise_batch, class_vector], dim=1)
                 y = z
+                if noise_array is not None:
+                    ys = [torch.cat([n, class_vector], dim=1) for n in noise_array]
+                else:
+                    ys = [y] * len(self.conv_blocks)
         elif self.num_classes > 0:
             z = noise_batch
             y = class_vector
+            ys = [y] * len(self.conv_blocks)
         else:
             z = noise_batch
             y = None
+            ys = [y] * len(self.conv_blocks)
 
         # First linear layer
         x = self.noise2feat(z)
@@ -386,7 +398,7 @@ class BigGANDeepGenerator(nn.Module):
             if isinstance(conv_block, SelfAttentionBlock):
                 x = conv_block(x)
             else:
-                x = conv_block(x, y)
+                x = conv_block(x, ys[idx])
         # Apply batchnorm-relu-conv-tanh at output
         x = self.output_layer(x)
         out_img = torch.tanh(x)
