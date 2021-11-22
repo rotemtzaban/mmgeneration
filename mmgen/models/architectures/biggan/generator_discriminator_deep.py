@@ -316,12 +316,13 @@ class BigGANDeepGenerator(nn.Module):
         """
         noise_array = None
         if isinstance(noise, torch.Tensor):
-            assert noise.shape[1] == self.noise_size
             if noise.ndim == 3:
+                assert noise.shape[2] == self.noise_size
                 noise_batch = noise[:, 0]
                 noise_array = noise[:, 1:].unbind(1)
                 assert len(noise_array) == len(self.conv_blocks)
             else:
+                assert noise.shape[1] == self.noise_size
                 assert noise.ndim == 2, ('The noise should be in shape of (n, c), '
                                          f'but got {noise.shape}')
                 noise_batch = noise
